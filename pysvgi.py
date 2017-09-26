@@ -1,60 +1,14 @@
+#!/usr/bin/env python3
 
-class Node(list):
-    pass
-        
-     
-class TextNode(Node):
-    def __init__(self, text):
-        self.text = text
-        
-    def __str__(self):
-        return self.text
-
-class Attr(Node):
-    pass
-
-class Element(Node):
-    DEFAULTS = ()
-    
-    def __init__(
-            self, 
-            tagName, 
-            namespaceURI=None, 
-            prefix=None, 
-            localName=None,
-            **kwargs):  
-        super().__init__()
-        self.tagName = tagName
-        self.attributes = {}
-        self.setAttributes(**kwargs)
-        
-    def setAttributes(self, **kwargs):
-        self.attributes.update(kwargs)
-        for key, default in self.DEFAULTS:
-            if key in kwargs:
-                continue
-            self.attributes[key] = default
-            
-    def __str__(self):
-        pieces = ['<', self.tagName]
-        for key, value in self.attributes.items():
-            pieces.append(' %s="%s"' % (key,value))
-        if len(self) == 0:
-            pieces.append('/>')
-            return ''.join(pieces)
-        pieces.append(">")
-        for child in self:
-            pieces.append(str(child))
-        pieces.append("</%s>" % self.tagName)
-        return ''.join(pieces)
-
+from dom import Element
 
 class BaseSvgElement(Element):
     
     # dict to 
     KWARG_TRANSLATION = {
         'font_size':'font-size',
-        'text_anchor':'text-anchor'
+        'text_anchor':'text-anchor',
+        'stroke_width':'stroke-width'
     }
     def __init__(
             self, 
@@ -72,29 +26,59 @@ class BaseSvgElement(Element):
                 raise KeyError("%s already in kwargs")
             kwargs[new_key] = value
         super().__init__(tagName, namespaceURI, prefix, localName, **kwargs)
+
+
+class RectangularElement(BaseSvgElement):
+
+    def __init__(self, tagName, **kwargs):
+        super().__init__(tagName, **kwargs)
         
 
-class Rect(BaseSvgElement):
+    @property
+    def width(self):
+        try:
+            return self['width']
+        except KeyError:
+            self['width'] = 0
+            return 0
+            
+    @width.setter
+    def width(self, value):
+        self['width'] = value
+        
+    @property
+    def height(self):
+        try:
+            return self['height']
+        except KeyError:
+            self['height'] = 0
+            return 0
+            
+    @height.setter
+    def height(self, value):
+        self['height'] = value
+
+
+class Line(BaseSvgElement):
+    def __init__(self, x1=0, y1=0, x2=0, y2=0, **kwargs):
+        super().__init__('line', **kwargs)
+        self['x1'] = x1
+        self['y1'] = y1
+        self['x2'] = x2
+        self['y2'] = y2
+
+
+class Rect(RectangularElement):
     DEFAULTS = (
         ('fill', 'black'),
     )
     
     def __init__(self, width=0, height=0, **kwargs):
         super().__init__('rect', **kwargs)
-        self.attributes['width'] = width
-        self.attributes['height'] = height
+        self['width'] = width
+        self['height'] = height
         
-    @property
-    def width(self):
-        try:
-            return self.attributes['width']
-        except KeyError:
-            self.attributes['width'] = 0
-            return 0
-            
-    @width.setter
-    def width(self, value):
-        self.attributes['width'] = value
+
         
         
 class Circle(BaseSvgElement):
@@ -104,9 +88,9 @@ class Circle(BaseSvgElement):
         
     def __init__(self, r, cx, cy, **kwargs):
         super().__init__('circle', **kwargs)
-        self.attributes['r'] = r
-        self.attributes['cx'] = cx
-        self.attributes['cy'] = cy
+        self['r'] = r
+        self['cx'] = cx
+        self['cy'] = cy
 
         
 class Text(BaseSvgElement):
@@ -116,8 +100,7 @@ class Text(BaseSvgElement):
     
     def __init__(self, text, **kwargs):
         super().__init__('text', **kwargs)
-        textNode = TextNode(text)
-        self.append(textNode)
+        self.append(text)
 
 class Ellipse(BaseSvgElement):
     DEFAULTS = (
@@ -130,19 +113,17 @@ class Ellipse(BaseSvgElement):
         self.attributes['ry'] = ry
 #<ellipse cx="75" cy="75" rx="20" ry="5" stroke="red" fill="transparent" stroke-width="5"/>
 
-class Svg(BaseSvgElement):
+class Svg(RectangularElement):
     def __init__(self, width=0, height=0, **kwargs):
-        super().__init__('svg', **kwargs)
-        self.attributes['version'] = "1.1"
-        self.attributes['baseProfile'] = "full"
-        self.attributes['xmlns'] = "http://www.w3.org/2000/svg"
-        self.attributes['width'] = width
-        self.attributes['height'] = height
+        super().__init__(
+            'svg',         
+            version="1.1",
+            baseProfile="full",
+            xmlns="http://www.w3.org/2000/svg",
+            width=width,
+            height=height)
             
-    def document(self):
-        pieces = ["<?xml version='1.0' encoding='utf-8'?>"]
-        pieces.append(str(self))
-        return "\n".join(pieces)
+
         
     
                                              

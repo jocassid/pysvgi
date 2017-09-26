@@ -30,7 +30,16 @@ def try_viewBox():
     svg.append(Circle(50, 150, 50, fill='green'))
     svg.append(Circle(50, 150, 150, fill='yellow'))
     
-    print(svg.document())
+    print('''<?xml version='1.0' encoding='utf-8'?>
+        <html>
+        <style>
+        body{ background: black }
+        svg{ border: solid white 1px }
+        </style>
+        <body>''')
+    print(svg)
+    print('''</body>
+        </html>''')
 
 def main():
     try_viewBox()
