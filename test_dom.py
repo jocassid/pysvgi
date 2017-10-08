@@ -47,14 +47,16 @@ class ElementTest(TestCase):
         self.assertEqual('2', foo['bravo'])
 
     def test_setDefaults(self):
-        class YadaYada(Element):
-            DEFAULTS = (('foo', 'bar'))
+        class Div(Element):
+            DEFAULTS = {'class': 'content'}
 
-            def __init__(self):
-                super().__init__('yadayada')
-        yadaYada = YadaYada()
-        self.assertEqual()
+            def __init__(self, **kwargs):
+                super().__init__('div', **kwargs)
 
+        div = Div(id='disclaimer')
+
+        self.assertEqual('content', div['class'])
+        self.assertEqual('disclaimer', div['id'])
 
     def test_toprettyxml(self):
         svg = Element('svg')

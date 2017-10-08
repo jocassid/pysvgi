@@ -45,7 +45,7 @@ class Attr(Node):
 
 
 class Element(Node):
-    DEFAULTS = ()
+    DEFAULTS = {}
 
     def __init__(
             self,
@@ -58,6 +58,10 @@ class Element(Node):
         self.tagName = tagName
         self._attributes = kwargs
 
+        for key, value in self.DEFAULTS.items():
+            if key not in self._attributes:
+                self._attributes[key] = value
+
     @property
     def attributes(self):
         return self._attributes
@@ -66,9 +70,8 @@ class Element(Node):
     def attributes(self, attr_dict):
         self._attributes.update(attr_dict)
         for key, default in self.DEFAULTS:
-            if key in attr_dict:
-                continue
-            self._attributes[key] = default
+            if key not in self._attributes:
+                self._attributes[key] = default
 
     def setAttribute(self, name, value):
         self._attributes[name] = value
@@ -85,7 +88,6 @@ class Element(Node):
             self._attributes[key] = value
             return
         raise TypeError("Unsupported index type %s" % key_type)
-
 
     def __getitem__(self, key):
         key_type = type(key)

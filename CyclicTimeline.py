@@ -48,31 +48,138 @@ class DatetimeUtil:
         rounded_datetime = DatetimeUtil.round_down(datetime_in, resolution)
         timedelta_args = DatetimeUtil.RESOLUTIONS[resolution].timedelta_args
         return rounded_datetime + timedelta(**timedelta_args)
+        
+        
+class Event:
+    
+    DATE_FORMAT = '%Y-%m-%d %H:%M:%S'
+    
+    def __init__(self, startTime):
+        self.startTime = startTime
+        
+    def inRange(self, startTime, endTime):
+        return startTime <= self.startTime < endTime
+        
+    def __repr__(self):
+        return '<Event %s>' % self.startTime.strftime(self.DATE_FORMAT)
+        
+    def __eq__(self, rhs):
+        if rhs is None:
+            return False
+        if type(rhs) != type(self):
+            return False
+        return self.startTime == rhs.startTime
 
 
+class EventSpan(Event):
+    def __init__(self, startTime, endTime):
+        super().__init__(startTime)
+        self.endTime = endTime
+        
+    def split(self, splitTime, resolutionTimedelta):
+        if not (self.startTime < splitTime < self.endTime):
+            return self, None
+        remainderEvent = EventSpan(splitTime, self.endTime)
+        self.endTime = splitTime - resolutionTimedelta
+        return self, remainderEvent
+        
+    def __repr__(self):
+        return '<EventSpan %s - %s>' % \
+            (self.startTime.strftime(self.DATE_FORMAT),
+            self.endTime.strftime(self.DATE_FORMAT))
+
+
+class EventSeries(list):
+    
+    def __init__(self, name, color, iterable=None):
+        if iterable is None:
+            super().__init__()
+        else:
+            super().__init__(iterable)
+        self.name = name
+        self.color = color
+        
+    def append(self, event):
+        event.color = self.color
+        super().append(event)
+        
+    def sort(self):
+        super().sort(key=lambda i: i.startTime)
+        
+    def getEventsInRange(self, startTime, endTime, resolutionTimedelta):
+        eventsOut = []
+        for event in self:
+            if not event.inRange(startTime, endTime):
+                continue
+                
+            if isinstance(event, EventSpan):
+                event, eventRemenant = event.split(
+                    endTime, 
+                    resolutionTimedelta)
+            eventsOut.append(event)
+        return eventsOut
+            
+            
 class CyclicTimeline(Svg):
+
+    MARGIN_TOP = 50
+    MARGIN_BOTTOM = 50
+    MARGIN_LEFT = 50
+    MARGIN_RIGHT = 50
+    
+    SPACE_FOR_DATE = 100
+    LINE_LENGTH = 300
 
     CycleConfiguration = namedtuple(
         'CycleConfiguration',
-        ['timedeltaArgs'])
+        [
+            'timedeltaArgs',
+            'dateFormat'
+        ])
 
     CYCLE_LENGTHS = {
-        'hour': CycleConfiguration({'seconds': 3600}),
-        'day': CycleConfiguration({'days': 1}),
-        'week': CycleConfiguration({'days': 7}),
-        'year': CycleConfiguration({'days': 365.25})
+        'hour': CycleConfiguration(
+            {'seconds': 3600},
+            '%H:%M'),
+        'day': CycleConfiguration(
+            {'days': 1},
+            '%Y-%m-%d'),
+        'week': CycleConfiguration(
+            {'days': 7},
+            '%Y-%m-%d'),
+        'month': None,
+        'year': CycleConfiguration(
+            {'days': 365.25},
+            '%Y')
     }
 
-    ROW_HEIGHT = 20
+    ROW_HEIGHT = 30
 
-    def __init__(self, startDate, endDate, cycleLength='hour'):
+    def __init__(
+            self,
+            startDate,
+            endDate,
+            cycleLength='hour',
+            dateFormat=None):
+
         super().__init__()
-        self.cycleLength = cycleLength
 
         self.startDate = DatetimeUtil.round_down(startDate, cycleLength)
         self.endDate = DatetimeUtil.round_up(endDate, cycleLength)
 
-        self.events = []
+        self.config = self.CYCLE_LENGTHS.get(cycleLength, None)
+        if self.config is None:
+            raise ValueError("Invalid cycleLength %s" % self.cycleLength)
+
+        self.cycleLength = cycleLength
+
+        if dateFormat is None:
+            self.dateFormat = self.config.dateFormat
+        else:
+            self.dateFormat = dateFormat
+
+        self.eventSeries = []
+        self.rowStartTimes = {}
 
     def getRowCount(self, span):
         if self.cycleLength == 'hour':
@@ -80,33 +187,83 @@ class CyclicTimeline(Svg):
         raise ValueError('%s cycleLength not implemented' % self.cycleLength)
 
     def getRowStartTime(self, rowIndex):
-        configuration = self.CYCLE_LENGTHS.get(self.cycleLength, None)
-        if configuration is None:
-            raise ValueError('%s cycleLength not implemented' %
-                self.cycleLength)
-        timedeltaArgs = configuration.timedeltaArgs
+        # Note: I'm using integer keys into a dict
+        if rowIndex in self.rowStartTimes:
+            return self.rowStartTimes[rowIndex]
+        
+        timedeltaArgs = self.config.timedeltaArgs
         timedeltaArgs = {
             k: v * rowIndex for k, v in list(timedeltaArgs.items())
         }
-        return self.startDate + timedelta(**timedeltaArgs)
+        startTime = self.startDate + timedelta(**timedeltaArgs)
+        self.rowStartTimes[rowIndex] = startTime
+        
+        twoBack = rowIndex - 2
+        if twoBack in self.rowStartTimes:
+            self.rowStartTimes.pop(twoBack)
+            
+        return startTime
+        
+    def sortEvents(self):
+        for eventSeries in self.eventSeries:
+            eventSeries.sort()
 
+    def getEventsOnThisRow(self, rowStartTime, nextRowStartTime):
+        for eventSeries in self.eventSeries:
+            pass
+        
+
+    def layoutEvents(self, rowEvents, y):
+        return y
+        
+              
+    def drawCycleLine(self, y, rowStartTime):
+        text = Text(
+            rowStartTime.strftime(self.dateFormat),
+            self.MARGIN_LEFT,
+            y,
+            text_anchor='start')
+        self.append(text)
+        line = Line(
+            self.MARGIN_LEFT + self.SPACE_FOR_DATE,
+            y,
+            self.MARGIN_LEFT + self.SPACE_FOR_DATE + self.LINE_LENGTH,
+            y)
+        self.append(line)
+        
+    def renderEvents(self):
+        pass
+          
     def build(self):
         span = self.endDate - self.startDate
         print('timelineSpan', span)
-        if self.cycleLength not in self.CYCLE_LENGTHS:
-            raise ValueError("Unsupported cycleLength %s" % self.cycleLength)
+
         rows = self.getRowCount(span)
 
-        self.height = rows * self.ROW_HEIGHT
-        self.width = 300
+        self.sortEvents()
 
+        y = self.MARGIN_TOP
         for i in range(rows):
             rowStartTime = self.getRowStartTime(i)
-            y = i * self.ROW_HEIGHT + self.ROW_HEIGHT / 2.0
-            text = Text(str(rowStartTime), 0, y)
-            self.append(text)
-            line = Line(50, y, self.width - 50, y)
-            self.append(line)
+            nextRowStartTime = self.getRowStartTime(i) 
+            
+            rowEvents = self.getEventsOnThisRow(
+                rowStartTime, 
+                nextRowStartTime)
+            
+            y = self.layoutEvents(rowEvents, y)
+            
+            self.drawCycleLine(y, rowStartTime)
+            
+            self.renderEvents()
+            
+            
+            
+
+        self.height = y + self.MARGIN_BOTTOM
+        self.width = self.MARGIN_LEFT + self.SPACE_FOR_DATE + \
+            self.LINE_LENGTH + self.MARGIN_RIGHT
+
 
     def toprettyxml(self, indent='\t', newl='\n', encoding=''):
         self.build()
@@ -120,8 +277,18 @@ if __name__ == '__main__':
     timeline = CyclicTimeline(
         datetime(2017, 9, 10, 9),
         datetime(2017, 9, 10, 17),
-        'hour')
-    timeline.events = [datetime(2017, 9, 10, 9, 30)]
+        'hour',
+        '%I:%M %p')
+    
+    series1 = EventSeries('series1', 'green')
+    series1.append(Event(datetime(2017, 9, 10, 9, 30)))
+    series1.append(
+        EventSpan(
+            datetime(2017, 9, 10, 9, 40),
+            datetime(2017, 9, 10, 9, 50)))
+    
+    timeline.events = [series1]
+    
 
     with open('timeline.svg', 'w') as outFile:
         outFile.write(Document.XML_LINE + '\n')

@@ -62,10 +62,10 @@ class RectangularElement(BaseSvgElement):
 
 
 class Line(BaseSvgElement):
-    DEFAULTS = (
-        ('stroke-width', '1'),
-        ('stroke', 'black')
-    )
+    DEFAULTS = {
+        'stroke-width': '1',
+        'stroke': 'black'
+    }
 
     def __init__(self, x1=0, y1=0, x2=0, y2=0, **kwargs):
         super().__init__('line', **kwargs)
@@ -76,9 +76,9 @@ class Line(BaseSvgElement):
 
 
 class Rect(RectangularElement):
-    DEFAULTS = (
-        ('fill', 'black'),
-    )
+    DEFAULTS = {
+        'fill': 'black',
+    }
 
     def __init__(self, width=0, height=0, **kwargs):
         super().__init__('rect', **kwargs)
@@ -86,12 +86,10 @@ class Rect(RectangularElement):
         self['height'] = height
 
 
-
-
 class Circle(BaseSvgElement):
-    DEFAULTS = (
-        ('fill', 'black'),
-    )
+    DEFAULTS = {
+        'fill': 'black',
+    }
 
     def __init__(self, r, cx, cy, **kwargs):
         super().__init__('circle', **kwargs)
@@ -101,9 +99,9 @@ class Circle(BaseSvgElement):
 
 
 class Text(BaseSvgElement):
-    DEFAULTS = (
-        ('fill', 'black'),
-    )
+    DEFAULTS = {
+        'fill': 'black',
+    }
 
     def __init__(self, text, x, y, **kwargs):
         super().__init__('text', **kwargs)
@@ -113,9 +111,9 @@ class Text(BaseSvgElement):
 
 
 class Ellipse(BaseSvgElement):
-    DEFAULTS = (
-        ('fill', 'black'),
-    )
+    DEFAULTS = {
+        'fill': 'black',
+    }
 
     def __init__(self, rx, ry, **kwargs):
         super().__init__('ellipse', **kwargs)
@@ -133,9 +131,3 @@ class Svg(RectangularElement):
             xmlns="http://www.w3.org/2000/svg",
             width=width,
             height=height)
-
-
-
-
-
-
