@@ -5,7 +5,7 @@ from datetime import datetime, timedelta
 from math import ceil
 
 from dom import Document
-from pysvgi import Svg, Line, Text
+from pysvgi import Circle, Line, Svg, Text
 
 
 class DatetimeUtil:
@@ -56,9 +56,11 @@ class Event:
     
     def __init__(self, startTime):
         self.startTime = startTime
+        self.x = None
+        self.y = None
         
-    def inRange(self, startTime, endTime):
-        return startTime <= self.startTime < endTime
+    def onRow(self, row):
+        return row.startTime <= self.startTime < row.nextRowStartTime
         
     def __repr__(self):
         return '<Event %s>' % self.startTime.strftime(self.DATE_FORMAT)
@@ -69,6 +71,15 @@ class Event:
         if type(rhs) != type(self):
             return False
         return self.startTime == rhs.startTime
+        
+    def layout(self, row):
+        self.x = row.datetimeToX(self.startTime)
+        self.y = row.baseY
+        
+    def render(self):
+        print('rendering event')
+        return [Circle(5, self.x, self.y)]
+
 
 
 class EventSpan(Event):
@@ -106,20 +117,56 @@ class EventSeries(list):
     def sort(self):
         super().sort(key=lambda i: i.startTime)
         
-    def getEventsInRange(self, startTime, endTime, resolutionTimedelta):
+    def getEventsOnRow(self, row, resolutionTimedelta):
         eventsOut = []
+        remnants = []
+        
         for event in self:
-            if not event.inRange(startTime, endTime):
+            if not event.onRow(row):
                 continue
+            
+            # if isinstance(event, EventSpan):
+                # event, remnant = event.split(
+                    # row.nextRowStartTime, 
+                    # resolutionTimedelta)
+                # remnants.append(remnant)
                 
-            if isinstance(event, EventSpan):
-                event, eventRemenant = event.split(
-                    endTime, 
-                    resolutionTimedelta)
             eventsOut.append(event)
+            
+        for remnant in remnants:
+            self.insert(0, remnant)
+            
         return eventsOut
-            
-            
+
+
+class Row:
+    def __init__(
+            self,
+            startTime,
+            nextRowStartTime,
+            minX,
+            maxX,
+            baseY):
+    
+        self.startTime = startTime
+        self.nextRowStartTime = nextRowStartTime
+        self.minX = minX
+        self.maxX = maxX
+        self.baseY = baseY
+        
+        self.recalculate()
+        
+    def recalculate(self):
+        self.width = self.maxX - self.minX
+        self.startTimestamp = self.startTime.timestamp()
+        self.timeSpan = self.nextRowStartTime.timestamp() - self.startTimestamp
+
+    def datetimeToX(self, datetimeIn):
+        timeSinceStart = datettimeIn.timestamp() - self.startTimestamp
+        temp = (timeSinceStart / self.timeSpan) * self.width
+        return self.minX + int(temp)
+        
+
 class CyclicTimeline(Svg):
 
     MARGIN_TOP = 50
@@ -129,6 +176,8 @@ class CyclicTimeline(Svg):
     
     SPACE_FOR_DATE = 100
     LINE_LENGTH = 300
+    
+    RESOLUTION_TIMEDELTA = timedelta(seconds=60) 
 
     CycleConfiguration = namedtuple(
         'CycleConfiguration',
@@ -178,7 +227,7 @@ class CyclicTimeline(Svg):
         else:
             self.dateFormat = dateFormat
 
-        self.eventSeries = []
+        self.allEventSeries = []
         self.rowStartTimes = {}
 
     def getRowCount(self, span):
@@ -205,34 +254,43 @@ class CyclicTimeline(Svg):
         return startTime
         
     def sortEvents(self):
-        for eventSeries in self.eventSeries:
+        for eventSeries in self.allEventSeries:
             eventSeries.sort()
 
-    def getEventsOnThisRow(self, rowStartTime, nextRowStartTime):
-        for eventSeries in self.eventSeries:
-            pass
+    def getEventsOnThisRow(self, row):
+        eventsOut = []
+        for eventSeries in self.allEventSeries:
+            eventsOut += eventSeries.getEventsOnRow(
+                    row,
+                    self.RESOLUTION_TIMEDELTA)
+        eventsOut.sort()
+        return eventsOut
         
 
-    def layoutEvents(self, rowEvents, y):
-        return y
+    def layoutEvents(self, rowEvents, row):
+        placedEvents = []
+        maxY = row.baseY 
+        for i, event in enumerate(rowEvents):
+            event.layout(row)
+            
+        return maxY
         
               
-    def drawCycleLine(self, y, rowStartTime):
+    def renderCycleLine(self, y, rowStartTime, lineMinX, lineMaxX):
         text = Text(
             rowStartTime.strftime(self.dateFormat),
             self.MARGIN_LEFT,
             y,
             text_anchor='start')
         self.append(text)
-        line = Line(
-            self.MARGIN_LEFT + self.SPACE_FOR_DATE,
-            y,
-            self.MARGIN_LEFT + self.SPACE_FOR_DATE + self.LINE_LENGTH,
-            y)
+        line = Line(lineMinX, y, lineMaxX, y) 
         self.append(line)
         
     def renderEvents(self):
-        pass
+        for eventSeries in self.allEventSeries:
+            for event in eventSeries:
+                for element in event.render():
+                    self.append(element)
           
     def build(self):
         span = self.endDate - self.startDate
@@ -243,19 +301,31 @@ class CyclicTimeline(Svg):
         self.sortEvents()
 
         y = self.MARGIN_TOP
+        lineMinX = self.MARGIN_LEFT + self.SPACE_FOR_DATE
+        lineMaxX = self.MARGIN_LEFT + self.SPACE_FOR_DATE + self.LINE_LENGTH
+        
         for i in range(rows):
             rowStartTime = self.getRowStartTime(i)
-            nextRowStartTime = self.getRowStartTime(i) 
+            nextRowStartTime = self.getRowStartTime(i)
             
-            rowEvents = self.getEventsOnThisRow(
+            row = Row(
                 rowStartTime, 
-                nextRowStartTime)
+                nextRowStartTime,
+                lineMinX,
+                lineMaxX,
+                y)
             
-            y = self.layoutEvents(rowEvents, y)
+            rowEvents = self.getEventsOnThisRow(row)
             
-            self.drawCycleLine(y, rowStartTime)
+            y = self.layoutEvents(
+                rowEvents, 
+                row)
+            
+            self.renderCycleLine(y, rowStartTime, lineMinX, lineMaxX)
             
             self.renderEvents()
+            
+            y += 20
             
             
             
@@ -287,7 +357,7 @@ if __name__ == '__main__':
             datetime(2017, 9, 10, 9, 40),
             datetime(2017, 9, 10, 9, 50)))
     
-    timeline.events = [series1]
+    timeline.allEventSeries = [series1]
     
 
     with open('timeline.svg', 'w') as outFile:

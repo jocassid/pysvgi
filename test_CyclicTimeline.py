@@ -4,7 +4,7 @@ from datetime import datetime, timedelta
 from unittest import TestCase
 
 from CyclicTimeline import CyclicTimeline, DatetimeUtil, Event, \
-    EventSeries, EventSpan
+    EventSeries, EventSpan, Row
 
 
 class DatetimeUtilTest(TestCase):
@@ -23,23 +23,59 @@ class DatetimeUtilTest(TestCase):
 
 
 class EventTest(TestCase):
-    def test_inRange(self):
+    def test_onRow(self):
         event = Event(datetime(2017, 10, 2, 23, 59, 59))
         
-        self.assertFalse(
-            event.inRange(
-                datetime(2017, 10, 2, 22),
-                datetime(2017, 10, 2, 23)))
+        row = Row(
+            datetime(2017, 10, 2, 22),
+            datetime(2017, 10, 2, 23),
+            0, 100, 50)
+        self.assertFalse(event.onRow(row))
         
-        self.assertTrue(
-            event.inRange(
-                datetime(2017, 10, 2, 23),
-                datetime(2017, 10, 3)))
+        row = Row(
+            datetime(2017, 10, 2, 23),
+            datetime(2017, 10, 3),
+            0, 100, 50)
+        self.assertTrue(event.onRow(row))
         
-        self.assertFalse(
-            event.inRange(
-                datetime(2017, 10, 3),
-                datetime(2017, 10, 3, 1)))
+        row = Row(
+            datetime(2017, 10, 3),
+            datetime(2017, 10, 3, 1),
+            0, 100, 50)
+        self.assertFalse(event.onRow(row))
+
+
+class RowTest(TestCase):
+
+    @classmethod
+    def setUpClass(cls):
+        cls.startTime = datetime(2017, 10, 17, 23, 0)
+        cls.row1 = Row(
+            cls.startTime,
+            datetime(2017, 10, 17, 23, 5),
+            0,      # minX
+            100,    # maxX,
+            25)
+
+    def test_recalculate(self):
+        # recalculate is called as part of the __init__ method
+        self.assertEqual(100, self.row1.width)
+        self.assertEqual(
+            self.startTime.timestamp(), 
+            self.row1.startTimestamp)
+        self.assertEqual(300, self.row1.timeSpan)
+    
+    def test_datetimeToX(self):
+        
+        row = Row(
+            datetime(2017, 10, 17, 23, 0),
+            datetime(2017, 10, 17, 23, 5),
+            0,      # minX
+            100,    # maxX,
+            25)
+        
+        self.assertEqual
+            
         
         
 class EventSpanTest(TestCase):
@@ -47,21 +83,24 @@ class EventSpanTest(TestCase):
         event = EventSpan(
             datetime(2017, 10, 3, 19, 40),
             datetime(2017, 10, 3, 19, 45))
+
+        row = Row(
+            datetime(2017, 10, 3, 19, 10),
+            datetime(2017, 10, 3, 19, 30),
+            0, 100, 50)
+        self.assertFalse(event.onRow(row))
         
-        self.assertFalse(
-            event.inRange(
-                datetime(2017, 10, 3, 19, 10),
-                datetime(2017, 10, 3, 19, 30)))
+        row = Row(
+            datetime(2017, 10, 3, 19, 30),
+            datetime(2017, 10, 3, 19, 40),
+            0, 100, 50)
+        self.assertFalse(event.onRow(row))
         
-        self.assertFalse(
-            event.inRange(
-                datetime(2017, 10, 3, 19, 30),
-                datetime(2017, 10, 3, 19, 40)))
-        
-        self.assertTrue(
-            event.inRange(
-                datetime(2017, 10, 3, 19, 30),
-                datetime(2017, 10, 3, 19, 42)))
+        row = Row(
+            datetime(2017, 10, 3, 19, 30),
+            datetime(2017, 10, 3, 19, 42),
+            0, 100, 50)
+        self.assertTrue(event.onRow(row))
         
     def test_split(self):
         startTime = datetime(2017, 10, 7, 17, 50)
@@ -82,7 +121,7 @@ class EventSpanTest(TestCase):
                 
         
 class EventSeriesTest(TestCase):
-    def test_getEventsInRange(self):
+    def test_getEventsOnRow(self):
         
         startTime = datetime(2017, 10, 7, 17, 0)
         endTime = datetime(2017, 10, 7, 18, 0)
@@ -93,7 +132,7 @@ class EventSeriesTest(TestCase):
         event4 = Event(endTime)
         
         spanStart = datetime(2017, 10, 7, 17, 50)
-        spanEnd = datetime(2017, 10, 7, 16, 10)
+        spanEnd = datetime(2017, 10, 7, 18, 10)
         event5 = EventSpan(spanStart, spanEnd)
         
         series = EventSeries(
@@ -101,11 +140,17 @@ class EventSeriesTest(TestCase):
             'red',
             [event1, event2, event3, event4, event5])
         
+        row = Row(
+            startTime,
+            endTime,
+            0,
+            100,
+            50)
+        
         resolutionTimedelta = timedelta(minutes=1)
         
-        events = series.getEventsInRange(
-            startTime, 
-            endTime, 
+        events = series.getEventsOnRow(
+            row, 
             resolutionTimedelta)
         
         self.assertFalse(event1 in events)
@@ -115,8 +160,6 @@ class EventSeriesTest(TestCase):
         
         event5a = EventSpan(spanStart, endTime - resolutionTimedelta)
         event5b = EventSpan(endTime, spanEnd)
-        
-        print('events', events)
         
         self.assertTrue(event5a in events)
         self.assertTrue(event5b in series)

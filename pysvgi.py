@@ -73,6 +73,18 @@ class Line(BaseSvgElement):
         self['y1'] = y1
         self['x2'] = x2
         self['y2'] = y2
+        
+    @property
+    def x1(self):
+        try:
+            return self['x1']
+        except KeyError:
+            self['x1'] = 0
+            return 0
+            
+    @x1.setter
+    def x1(self, value):
+        self['x1'] = value
 
 
 class Rect(RectangularElement):
